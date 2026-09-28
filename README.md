@@ -1,24 +1,30 @@
 # Geomacro Arc Risk Call
 
-A minimal, reproducible client for the Geomacro Tameion / Arc Testnet risk-aware business flow.
+Geomacro Arc Risk Call is a small, reproducible client that shows how an autonomous business workflow can check real-time economic and corridor risk before moving USDC on Arc.
 
-## What this repo demonstrates
+The public Geomacro Risk Gate remains non-custodial and non-executing. This repository verifies the risk decision, verifies that the configured chain is Arc Mainnet, and can verify a public Arc Mainnet transaction hash after the user signs a transaction in their own wallet.
 
-An external agent can ask Geomacro for a bounded business decision before moving funds:
+## Why this exists
+
+Autonomous agents can move money faster than a human can review every payment. Geomacro adds a machine-readable risk checkpoint before that action:
 
 1. describe the country or corridor and payment intent;
-2. request a decision from `https://geomacro.live/api/tameion/decision`;
-3. inspect the Risk Gate result and policy outcome;
-4. stop on `BLOCK`, require approval on `REQUIRE_APPROVAL`, or continue only when the policy allows it;
-5. keep the Geomacro Risk Gate itself non-executing (`execution_authorized=false`).
+2. request a bounded decision from Geomacro;
+3. inspect the Risk Gate result and business-policy action;
+4. stop on `BLOCK`, escalate on `REQUIRE_APPROVAL`, or continue only when policy allows;
+5. verify Arc Mainnet independently through its RPC;
+6. attach a public Arc transaction hash as onchain proof without exposing wallet secrets.
 
-The production Geomacro backend, signed Risk Objects, risk methodology, payment verification and audit service live in the main project. This repository is intentionally a small hackathon-facing reproduction client, not a duplicate backend.
+Geomacro evaluates risk. It does not hold wallet keys and the Risk Gate itself never authorizes execution.
 
-## Tameion positioning
+## Arc Mainnet configuration
 
-Primary fit: **RFB 4 — Autonomous Business Operator**.
+- Chain ID: `5042`
+- RPC: `https://rpc.mainnet.arc.io`
+- Explorer: `https://explorer.arc.io`
+- Gas asset: USDC
 
-Geomacro acts as a machine-readable economic-risk and policy layer before an autonomous business agent moves value. The Tameion workflow combines country/corridor risk, bounded spending policy, human escalation and Arc Testnet payment verification.
+Arc is EVM-compatible. Mainnet transactions move real value and are irreversible, so this repo never stores or requests a signing key.
 
 ## Quick start
 
@@ -26,41 +32,70 @@ Requirements: Node.js 20+.
 
 ```bash
 cp .env.example .env
-npm install
 npm run demo
 ```
 
-No private key is required for the default risk-call demo. It calls the public Geomacro Tameion decision endpoint only.
+`npm run demo` performs two independent checks:
 
-## Example
+- Arc Mainnet RPC reports chain ID `5042`;
+- Geomacro returns a valid audited risk decision while keeping `risk_gate.execution_authorized === false`.
+
+The command does not sign or broadcast a transaction.
+
+## Verify a public Arc Mainnet proof transaction
+
+After you approve and sign a small Arc Mainnet transaction in your own wallet, copy only the public transaction hash into `.env`:
+
+```bash
+ARC_PROOF_TX_HASH=0x...
+```
+
+Then run:
+
+```bash
+npm run mainnet:proof
+```
+
+The verifier checks the transaction and successful receipt directly against Arc Mainnet and prints the explorer link.
+
+Do not commit wallet credentials or signing secrets. They are neither required nor accepted by this repository.
+
+## Example risk call
 
 ```bash
 GEOMACRO_SCENARIO=USA\>CHN \
-GEOMACRO_AMOUNT_USDC=1 \
+GEOMACRO_AMOUNT_USDC=0.001 \
 GEOMACRO_POLICY=balanced \
 npm run demo
 ```
 
-The client exits non-zero if the response violates the expected safety boundary or schema.
+Supported scenario forms:
 
-## Expected safety boundary
+- country: `USA`
+- corridor: `USA>CHN`
 
-The demo requires all of the following:
+## Safety boundary
 
-- HTTP success from the public endpoint;
-- an `audit_id`;
-- a Tameion status of `AUTO_EXECUTE_READY`, `AWAITING_APPROVAL`, or `BLOCKED`;
-- a Risk Gate decision;
+A successful demo requires all of the following:
+
+- Arc RPC is reachable and reports mainnet chain ID `5042`;
+- Geomacro returns an `audit_id`;
+- the Risk Gate returns a decision and recommended action;
 - `risk_gate.execution_authorized === false`;
-- an agent action of `AUTO_EXECUTE`, `REQUIRE_APPROVAL`, or `BLOCK`.
+- the business-policy action is `AUTO_EXECUTE`, `REQUIRE_APPROVAL`, or `BLOCK`;
+- when `ARC_PROOF_TX_HASH` is supplied, the transaction exists on Arc Mainnet and has a successful receipt.
 
-The agent/business-policy layer may recommend an action, but the underlying Geomacro Risk Gate does not directly authorize execution.
+The agent/business-policy layer can recommend an action, but Geomacro's underlying Risk Gate does not directly authorize execution.
 
-## Live demo
+## Reproducibility
+
+GitHub Actions runs the smoke test without secrets. It verifies the live Arc Mainnet RPC and the live Geomacro safety boundary. A proof transaction is intentionally not generated by CI because mainnet signing belongs to the wallet owner.
+
+## Live product
 
 - Geomacro: https://geomacro.live
-- Tameion Agent Mode: https://geomacro.live/tameion
-- Arc Testnet explorer: https://testnet.arcscan.app
+- Risk workflow: https://geomacro.live/tameion
+- Arc Mainnet explorer: https://explorer.arc.io
 
 ## Repository structure
 
@@ -68,13 +103,26 @@ The agent/business-policy layer may recommend an action, but the underlying Geom
 .
 ├── .env.example
 ├── .github/workflows/smoke.yml
+├── .gitignore
+├── README.md
+├── SUBMISSION.md
 ├── package.json
-└── src/demo.mjs
+└── src
+    ├── demo.mjs
+    └── mainnet-proof.mjs
 ```
+
+## Arc Microgrant submission status
+
+The software side is mainnet-aware and reproducible. The final submission should only claim a completed Arc Mainnet transaction after `ARC_PROOF_TX_HASH` has been added and verified. `SUBMISSION.md` contains the prepared DoraHacks copy and final checklist.
 
 ## Security
 
-Do not commit wallet private keys, API secrets or production credentials. The default demo is read/evaluate-only and does not sign or broadcast a payment.
+- no private keys in this repository;
+- no wallet custody;
+- no automatic mainnet signing;
+- no execution authorization from the Risk Gate;
+- fail-closed checks for wrong chain, missing audit data, invalid action states, and failed proof transactions.
 
 ## License
 
