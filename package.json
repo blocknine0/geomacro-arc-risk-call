@@ -11,8 +11,5 @@
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {
-    "viem": "^2.37.9"
-  },
   "license": "MIT"
 }
